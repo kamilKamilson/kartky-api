@@ -1,6 +1,17 @@
 import { Response, Request } from "express";
+import { validationResult } from "express-validator";
 
 export const login = (req: Request, res: Response) => {
+    const errors = validationResult(req);
+
+    // if there is error then return Error
+    if (!errors.isEmpty()) {
+        return res.status(400).json({
+            success: false,
+            errors: errors.array(),
+        });
+    }
+
     console.log("logowanie");
     res.end();
 };
