@@ -1,10 +1,14 @@
-import express, { Express, Request, Response } from "express";
-import dotenv from "dotenv";
-
-import { router as authRouter } from "./routes/auth";
+import express, { Express } from "express";
 import path from "path";
 
-dotenv.config();
+import { router as authRouter } from "./routes/auth";
+
+import code500Middleware from "./middlewares/errors/500.middleware";
+import code404Middleware from "./middlewares/errors/404.middleware";
+import envResolver from "./utils/envResolver.util";
+import { mailer } from "./utils/mail.util";
+
+envResolver();
 
 const app: Express = express();
 const port = process.env.PORT;
@@ -18,12 +22,13 @@ app.use(
     })
 );
 
+console.log(mailer());
+
 app.use("/auth", authRouter);
 
-app.get("/", (req: Request, res: Response) => {
-    res.end();
+app.listen(port, () => {
+    console.log(`⚡ Server is running at localhost:${port}`);
 });
 
-app.listen(port, () => {
-    console.log(`[server]: Server is running at https:///localhost:${port}`);
-});
+app.use(code404Middleware);
+app.use(code500Middleware);
