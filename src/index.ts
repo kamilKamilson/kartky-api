@@ -6,7 +6,6 @@ import { router as authRouter } from "./routes/auth";
 import code500Middleware from "./middlewares/errors/500.middleware";
 import code404Middleware from "./middlewares/errors/404.middleware";
 import envResolver from "./utils/envResolver.util";
-import { mailer } from "./utils/mail.util";
 
 envResolver();
 
@@ -21,8 +20,6 @@ app.use(
         extended: false,
     })
 );
-
-console.log(mailer());
 
 app.use("/auth", authRouter);
 
