@@ -1,6 +1,7 @@
 import nodemailer, { Transporter } from "nodemailer";
 import envResolver from "./envResolver.util";
-
+import ejs from "ejs";
+import path from "path";
 envResolver();
 
 type MailOptions = {
@@ -9,6 +10,11 @@ type MailOptions = {
     subject: string;
     text: string;
     html: string;
+    attachments: {
+        filename: string;
+        path: string;
+        cid?: string;
+    }[];
 };
 
 const SMTP_HOST = process.env.SMTP_HOST;
@@ -25,6 +31,7 @@ export class Mailer {
         subject: "",
         text: "",
         html: "",
+        attachments: [],
     };
 
     constructor() {
@@ -32,8 +39,8 @@ export class Mailer {
             host: SMTP_HOST,
             port: SMTP_PORT,
             auth: {
-                user: SMTP_USERNAME, // generated ethereal user
-                pass: SMTP_PASSWORD, // generated ethereal password
+                user: SMTP_USERNAME,
+                pass: SMTP_PASSWORD,
             },
         });
     }
@@ -53,12 +60,24 @@ export class Mailer {
         return this;
     };
 
-    setHtml = (html: string) => {
+    setHtml = async (template: string, data: any = {}) => {
+        if (!data.preheader) data.preheader = "";
+
+        const html = (await ejs.renderFile(path.resolve(__dirname, `../views/mails/${template}.ejs`), data)) as string;
         this.mailOptions = { ...this.mailOptions, html };
         return this;
     };
 
-    send = async () => {
-        await this.transporter.sendMail(this.mailOptions);
+    private addLogo = () => {
+        this.mailOptions.attachments.push({
+            filename: "logo.png",
+            path: path.resolve(__dirname, "../public/logo.png"),
+            cid: "logo",
+        });
+    };
+
+    send = () => {
+        this.addLogo();
+        return this.transporter.sendMail(this.mailOptions);
     };
 }
