@@ -14,11 +14,31 @@ const msg = {
             alreadyConfirmed: "Your account is confirmed.",
             tokenNotValid: "Confirmation link expired",
         },
+        forgotPassword: {
+            falsepositive: "If user with this email exists, reset password link has been sent to your e-mail inbox.",
+        },
         passwordReset: {
             success: "Password has been changed. You can log in now.",
         },
         logout: {
             success: "You have been logged out.",
+        },
+        resetPassword: {
+            tokenNotValid: "Reset link expired",
+        },
+    },
+    mail: {
+        register: {
+            subject: "Account created succesfully",
+        },
+        confirmAccount: {
+            subject: "Confirm your account",
+        },
+        resetPassword: {
+            subject: "Password has been changed",
+        },
+        forgotPassword: {
+            subject: "Reset your password",
         },
     },
 };

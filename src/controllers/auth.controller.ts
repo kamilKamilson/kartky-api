@@ -78,9 +78,9 @@ export const register = async (req: Request, res: Response) => {
 
             const mail = await new Mailer()
                 .setTo(req.body.email)
-                .setSubject("Account created succesfully") //
+                .setSubject(messages.mail.register.subject) //
                 .setHtml("register", {
-                    subject: "Account created succesfully",
+                    subject: messages.mail.register.subject,
                     url: confirmUrl,
                 });
             await mail.send();
@@ -102,7 +102,7 @@ export const register = async (req: Request, res: Response) => {
             if (!user?.confirmed) {
                 try {
                     const confirmUrl = url(
-                        `/auth/account-confirmation/?token=${encrypt(
+                        `/account-confirmation/?token=${encrypt(
                             JSON.stringify({
                                 id: user?.id,
                                 email: user?.email,
@@ -111,18 +111,18 @@ export const register = async (req: Request, res: Response) => {
                     );
                     const mail = await new Mailer() //
                         .setTo(req.body.email)
-                        .setSubject("Confirm your account")
-                        .setHtml("confirm-account", { subject: "Confirm your account", url: confirmUrl });
+                        .setSubject(messages.mail.confirmAccount.subject)
+                        .setHtml("confirm-account", { subject: messages.mail.confirmAccount.subject, url: confirmUrl });
                     await mail.send();
+
+                    return res.status(201).json({
+                        message: msg.register.created,
+                    });
                 } catch (err) {
                     return res.status(400).json({
                         message: messages.global.errMail,
                     });
                 }
-
-                return res.status(400).json({
-                    message: msg.register.errExistsNotConfirmed,
-                });
             }
 
             return res.status(400).json({
@@ -144,8 +144,8 @@ export const forgotPassword = async (req: Request, res: Response) => {
         });
 
         if (!user)
-            return res.status(400).json({
-                message: "User with passed email not exists",
+            return res.status(200).json({
+                message: msg.forgotPassword.falsepositive,
             });
 
         const token = encrypt(
@@ -165,22 +165,16 @@ export const forgotPassword = async (req: Request, res: Response) => {
             },
         });
 
-        try {
-            const mail = await new Mailer() //
-                .setTo(user.email)
-                .setSubject("Reset password")
-                .setHtml("reset-password", { subject: "Reset password", url: url(`/reset-password?token=${token}`) });
+        const mail = await new Mailer() //
+            .setTo(user.email)
+            .setSubject(messages.mail.forgotPassword.subject)
+            .setHtml("reset-password", { subject: messages.mail.forgotPassword.subject, url: url(`/reset-password?token=${token}`) });
 
-            await mail.send();
+        await mail.send();
 
-            return res.status(200).json({
-                message: "Password link has been send",
-            });
-        } catch (err) {
-            return res.status(400).json({
-                message: messages.global.errMail,
-            });
-        }
+        return res.status(200).json({
+            message: msg.forgotPassword.falsepositive,
+        });
     } catch (err) {
         return res.status(400).json({
             message: messages.global.errDatabase,
@@ -194,7 +188,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
         if (!now().isBefore(data.exp))
             return res.status(400).json({
-                message: "Reset link expired",
+                message: msg.resetPassword.tokenNotValid,
             });
 
         try {
@@ -210,8 +204,8 @@ export const resetPassword = async (req: Request, res: Response) => {
 
             const mail = await new Mailer() //
                 .setTo(data.email)
-                .setSubject("Password has been changed")
-                .setHtml("password-changed", { subject: "Password has been changed", url: url("/login") });
+                .setSubject(messages.mail.resetPassword.subject)
+                .setHtml("password-changed", { subject: messages.mail.resetPassword.subject, url: url("/login") });
             await mail.send();
 
             return res.status(200).json({
@@ -221,7 +215,7 @@ export const resetPassword = async (req: Request, res: Response) => {
             return res.status(400).json({ message: messages.global.errDatabase });
         }
     } catch (err) {
-        return res.status(400).json({ message: "Reset link is not valid" });
+        return res.status(400).json({ message: msg.resetPassword.tokenNotValid });
     }
 };
 
@@ -255,8 +249,8 @@ export const accountConfirmation = async (req: Request, res: Response) => {
 
             const mail = await new Mailer() //
                 .setTo(data.email)
-                .setSubject("Account confirmed")
-                .setHtml("account-confirmed", { subject: "Account confirmed", url: url("/login") });
+                .setSubject(messages.mail.confirmAccount.subject)
+                .setHtml("account-confirmed", { subject: messages.mail.confirmAccount.subject, url: url("/login") });
             await mail.send();
 
             return res.status(200).json({
