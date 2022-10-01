@@ -11,15 +11,17 @@ datasource db {
 }
 
 model User {
-  id        String         @id @default(uuid())
-  confirmed Boolean        @default(false)
-  email     String         @unique
-  password  String
-  name      String
-  sessions  LoginSession[]
-  groups    ListGroup[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(uuid())
+  confirmed   Boolean        @default(false)
+  email       String         @unique
+  password    String
+  name        String
+  forgotToken String?        @db.Text
+  sessions    LoginSession[]
+  groups      ListGroup[]
+  role        Role           @default(USER)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
 
 model LoginSession {
@@ -66,4 +68,9 @@ model ListElement {
   data              Json
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+}
+
+enum Role {
+  ADMIN
+  USER
 }

@@ -1,17 +1,59 @@
 import { Response, Request } from "express";
-import { encrypt } from "../utils/crypto.util";
+import { decrypt, encrypt } from "../utils/crypto.util";
 import { Mailer } from "../utils/mail.util";
 import { PrismaClient } from "@prisma/client";
 import messages from "../config/messages.config";
 import url from "../utils/url.util";
+import { now } from "../utils/time.util";
+import { detect } from "detect-browser";
+import { generateAccessToken } from "../utils/jwt.util";
 
 const prisma = new PrismaClient();
 
 const msg = messages.auth;
 
-export const login = (req: Request, res: Response) => {
-    console.log("logowanie");
-    res.end();
+export const login = async (req: Request, res: Response) => {
+    try {
+        const user = await prisma.user.findFirst({
+            where: {
+                email: req.body.email,
+                password: encrypt(req.body.password),
+            },
+            select: {
+                id: true,
+                email: true,
+                name: true,
+            },
+        });
+
+        if (user) {
+            const browser = detect(req.headers["user-agent"]);
+
+            const data = encrypt(
+                JSON.stringify({
+                    browser: browser,
+                    ip: req.headers["x-forwarded-for"] || req.ip,
+                })
+            );
+
+            const token = generateAccessToken({
+                iss: user.id,
+            });
+
+            await prisma.loginSession.create({
+                data: {
+                    userId: user.id,
+                    data: data,
+                    token: token,
+                },
+            });
+
+            return res.status(200).json({ messages: "Logged in succesfully", user, token });
+        }
+        return res.status(400).json({ message: "Credentials are invalid" });
+    } catch (err) {
+        return res.status(400).json({ message: messages.global.errDatabase });
+    }
 };
 
 export const register = async (req: Request, res: Response) => {
@@ -26,7 +68,7 @@ export const register = async (req: Request, res: Response) => {
 
         try {
             const confirmUrl = url(
-                `/account-confirm/?token=${encrypt(
+                `/account-confirmation/?token=${encrypt(
                     JSON.stringify({
                         id: user.id,
                         email: user.email,
@@ -48,7 +90,7 @@ export const register = async (req: Request, res: Response) => {
             });
         } catch (err) {
             return res.status(400).json({
-                message: msg.register.errMail,
+                message: messages.global.errMail,
             });
         }
     } catch (err: any) {
@@ -60,7 +102,7 @@ export const register = async (req: Request, res: Response) => {
             if (!user?.confirmed) {
                 try {
                     const confirmUrl = url(
-                        `/account-confirm/?token=${encrypt(
+                        `/auth/account-confirmation/?token=${encrypt(
                             JSON.stringify({
                                 id: user?.id,
                                 email: user?.email,
@@ -74,7 +116,7 @@ export const register = async (req: Request, res: Response) => {
                     await mail.send();
                 } catch (err) {
                     return res.status(400).json({
-                        message: msg.register.errMail,
+                        message: messages.global.errMail,
                     });
                 }
 
@@ -88,51 +130,129 @@ export const register = async (req: Request, res: Response) => {
             });
         }
         return res.status(400).json({
-            message: msg.register.errDatabase,
+            message: messages.global.errDatabase,
         });
     }
 };
 
-export const checkForgotPasswordToken = (req: Request, res: Response) => {
-    console.log("forgotPasswordToken");
-
-    res.end(req.url);
-};
-
-export const forgotPassword = (req: Request, res: Response) => {
-    console.log("forgotPassword");
-
-    res.end(req.url);
-};
-
-export const accountConfirmation = async (req: Request, res: Response) => {
-    const data = req.data as EmailConfirmationData;
-
+export const forgotPassword = async (req: Request, res: Response) => {
     try {
         const user = await prisma.user.findFirst({
             where: {
-                id: data.uuid,
-                email: data.email,
+                email: req.body.email,
             },
         });
 
-        if (user?.confirmed) {
+        if (!user)
             return res.status(400).json({
-                message: msg.accountConfirmation.alreadyConfirmed,
+                message: "User with passed email not exists",
             });
-        }
+
+        const token = encrypt(
+            JSON.stringify({
+                uuid: user.id,
+                email: user.email,
+                exp: now().add(1, "hour"),
+            })
+        );
 
         await prisma.user.update({
             where: {
-                id: data.uuid,
-                email: data.email,
+                id: user.id,
             },
             data: {
-                confirmed: true,
+                forgotToken: token,
             },
         });
 
         try {
+            const mail = await new Mailer() //
+                .setTo(user.email)
+                .setSubject("Reset password")
+                .setHtml("reset-password", { subject: "Reset password", url: url(`/reset-password?token=${token}`) });
+
+            await mail.send();
+
+            return res.status(200).json({
+                message: "Password link has been send",
+            });
+        } catch (err) {
+            return res.status(400).json({
+                message: messages.global.errMail,
+            });
+        }
+    } catch (err) {
+        return res.status(400).json({
+            message: messages.global.errDatabase,
+        });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const data = JSON.parse(decrypt(req.query.token as string));
+
+        if (!now().isBefore(data.exp))
+            return res.status(400).json({
+                message: "Reset link expired",
+            });
+
+        try {
+            await prisma.user.update({
+                where: {
+                    id: data.uuid,
+                },
+                data: {
+                    password: encrypt(req.body.password),
+                    forgotToken: null,
+                },
+            });
+
+            const mail = await new Mailer() //
+                .setTo(data.email)
+                .setSubject("Password has been changed")
+                .setHtml("password-changed", { subject: "Password has been changed", url: url("/login") });
+            await mail.send();
+
+            return res.status(200).json({
+                message: msg.passwordReset.success,
+            });
+        } catch (err) {
+            return res.status(400).json({ message: messages.global.errDatabase });
+        }
+    } catch (err) {
+        return res.status(400).json({ message: "Reset link is not valid" });
+    }
+};
+
+export const accountConfirmation = async (req: Request, res: Response) => {
+    try {
+        const hash = decrypt(req.body.token);
+        const data: EmailConfirmationData = JSON.parse(hash);
+        try {
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: data.uuid,
+                    email: data.email,
+                },
+            });
+
+            if (user?.confirmed) {
+                return res.status(400).json({
+                    message: msg.accountConfirmation.alreadyConfirmed,
+                });
+            }
+
+            await prisma.user.update({
+                where: {
+                    id: data.uuid,
+                    email: data.email,
+                },
+                data: {
+                    confirmed: true,
+                },
+            });
+
             const mail = await new Mailer() //
                 .setTo(data.email)
                 .setSubject("Account confirmed")
@@ -141,18 +261,36 @@ export const accountConfirmation = async (req: Request, res: Response) => {
 
             return res.status(200).json({
                 message: msg.accountConfirmation.success,
-                redirect: "/login",
             });
         } catch (err) {
-            console.log(err);
+            return res.status(400).json({
+                message: messages.global.errDatabase,
+            });
         }
     } catch (err) {
-        console.log(err);
-
         return res.status(400).json({
-            message: msg.register.errDatabase,
+            message: msg.accountConfirmation.tokenNotValid,
         });
     }
+};
 
-    res.end();
+export const logout = async (req: Request, res: Response) => {
+    try {
+        await prisma.loginSession.update({
+            where: {
+                id: req.tokenId,
+            },
+            data: {
+                active: false,
+            },
+        });
+
+        return res.status(200).json({
+            message: msg.logout.success,
+        });
+    } catch (err) {
+        return res.status(400).json({
+            message: messages.global.errDatabase,
+        });
+    }
 };

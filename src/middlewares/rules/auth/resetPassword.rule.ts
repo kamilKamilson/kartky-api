@@ -3,8 +3,6 @@ import { z } from "zod";
 const rules = z.object({
     body: z
         .object({
-            email: z.string().email(),
-            name: z.string(),
             password: z.string().min(8),
             passwordConfirmation: z.string().min(8),
         })
@@ -42,6 +40,9 @@ const rules = z.object({
                 });
             }
         }),
+    query: z.object({
+        token: z.string(),
+    }),
 });
 
 export default rules;

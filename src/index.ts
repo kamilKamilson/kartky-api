@@ -1,4 +1,4 @@
-import express, { Express } from "express";
+import express, { Express, NextFunction, Request } from "express";
 import path from "path";
 
 import { router as authRouter } from "./routes/auth";
@@ -6,6 +6,7 @@ import { router as authRouter } from "./routes/auth";
 import code500Middleware from "./middlewares/errors/500.middleware";
 import code404Middleware from "./middlewares/errors/404.middleware";
 import envResolver from "./utils/envResolver.util";
+import { Response } from "@sendgrid/helpers/classes";
 
 envResolver();
 

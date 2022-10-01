@@ -1,19 +1,21 @@
 import { Request, Response, NextFunction } from "express";
-import { ValidationChain, validationResult } from "express-validator";
+import { ZodSchema } from "zod/lib";
 
-const validate = (validations: ValidationChain[]) => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-        for (const validation of validations) {
-            await validation.run(req);
-        }
+const validate = (schema: ZodSchema) => (req: Request, res: Response, next: NextFunction) => {
+    try {
+        schema.parse({
+            body: req.body,
+            query: req.query,
+            params: req.params,
+        });
 
-        const errors = validationResult(req);
-        if (errors.isEmpty()) {
-            return next();
-        }
-
-        res.status(400).json({ errors: errors.array() });
-    };
+        next();
+    } catch ({ errors }) {
+        return res.status(400).json({
+            message: "Fields are not valid",
+            errors: errors,
+        });
+    }
 };
 
 export default validate;

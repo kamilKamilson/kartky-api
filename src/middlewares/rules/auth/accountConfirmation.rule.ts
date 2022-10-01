@@ -1,22 +1,9 @@
-import { body } from "express-validator";
-import FieldException from "../../../exceptions/FieldException";
-import { decrypt } from "../../../utils/crypto.util";
+import { z } from "zod";
 
-const rules = [
-    body("token")
-        .exists()
-        .bail()
-        .withMessage("Token is required")
-        .custom(async (value: string, { req }) => {
-            try {
-                const hash = decrypt(value);
-                const data: EmailConfirmationData = JSON.parse(hash);
-
-                req.data = data;
-            } catch (err) {
-                throw new FieldException("Token is not valid");
-            }
-        }), //
-];
+const rules = z.object({
+    body: z.object({
+        token: z.string(),
+    }),
+});
 
 export default rules;
